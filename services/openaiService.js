@@ -62,13 +62,26 @@ Remember: Tu ek AI nahi lagna chahiye — tu ek knowledgeable dost hai jo hamesh
 // ─────────────────────────────────────────────
 // Chat Completion (streaming)
 // ─────────────────────────────────────────────
-const streamChat = async ({ messages, user, onChunk, onDone, onError }) => {
+const streamChat = async ({ messages, user, contextChunks = [], onChunk, onDone, onError }) => {
   try {
+    console.log(`🤖 Starting streamChat for user: ${user.name}`);
     const systemPrompt = buildSystemPrompt(user);
 
+    // Inject RAG context if available
+    let ragContext = '';
+    if (contextChunks && contextChunks.length > 0) {
+      ragContext = `\n\nRELEVANT CONTENT FROM USER'S KNOWLEDGE BASE:\n${contextChunks
+        .map((c, i) => `[Source ${i + 1}: ${c.metadata?.fileName || 'Document'} — ${c.subject}]\n${c.chunkText}`)
+        .join('\n\n---\n\n')}\n\nAb is context ka use kar ke jawab de.`;
+      console.log(`🧠 Injected ${contextChunks.length} RAG chunks into stream prompt.`);
+    }
+
+    const finalSystemPrompt = systemPrompt + ragContext;
+
+    console.log(`📡 Requesting OpenAI Chat Completion stream (model: gpt-4o)...`);
     const stream = await openai.chat.completions.create({
       model: 'gpt-4o',
-      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      messages: [{ role: 'system', content: finalSystemPrompt }, ...messages],
       stream: true,
       max_tokens: 1000,
       temperature: 0.85,
@@ -76,11 +89,13 @@ const streamChat = async ({ messages, user, onChunk, onDone, onError }) => {
 
     let fullContent = '';
     let totalTokens = 0;
+    let chunkCount = 0;
 
     for await (const chunk of stream) {
       const delta = chunk.choices[0]?.delta?.content || '';
       if (delta) {
         fullContent += delta;
+        chunkCount++;
         onChunk(delta);
       }
       if (chunk.usage) {
@@ -88,9 +103,10 @@ const streamChat = async ({ messages, user, onChunk, onDone, onError }) => {
       }
     }
 
+    console.log(`✅ Stream finished. Chunks sent: ${chunkCount}. Reply length: ${fullContent.length} chars.`);
     onDone({ content: fullContent, tokensUsed: totalTokens });
   } catch (error) {
-    console.error('OpenAI stream error:', error.message);
+    console.error('❌ OpenAI stream error:', error.message);
     onError(error);
   }
 };
