@@ -38,16 +38,21 @@ router.post('/transcribe', protect, (req, res) => {
 // ─────────────────────────────────────────────
 router.post('/speak', protect, async (req, res) => {
   try {
-    const { text, voice = 'onyx' } = req.body;
+    const { text } = req.body;
 
     if (!text?.trim()) {
       return res.status(400).json({ success: false, message: 'Text do bhai — kya bolun?' });
     }
 
-    const audioBuffer = await textToSpeech(text);
+    // Detect if text contains Hindi (Devanagari) characters or user preferredLanguage is hindi
+    const hasHindi = /[\u0900-\u097F]/.test(text);
+    const language = (req.user?.preferredLanguage === 'hindi' || hasHindi) ? 'hi' : 'en';
+
+    console.log(`🎙️ Generating TTS for text: "${text.substring(0, 40)}..." in language: ${language}`);
+    const audioBuffer = await textToSpeech(text, language);
 
     res.set({
-      'Content-Type': 'audio/mpeg',
+      'Content-Type': audioBuffer.isWav ? 'audio/wav' : 'audio/mpeg',
       'Content-Length': audioBuffer.length,
       'Cache-Control': 'no-cache',
     });

@@ -1,4 +1,5 @@
 const OpenAI = require('openai');
+const axios = require('axios');
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -162,10 +163,34 @@ const transcribeAudio = async (audioBuffer, mimeType = 'audio/webm') => {
 // ─────────────────────────────────────────────
 // Text-to-Speech (TTS)
 // ─────────────────────────────────────────────
-const textToSpeech = async (text) => {
-  // Trim to max 4096 chars (TTS limit)
+const textToSpeech = async (text, language = 'en') => {
   const truncated = text.substring(0, 4096);
+  const xttsApiUrl = process.env.XTTS_API_URL;
 
+  if (xttsApiUrl) {
+    try {
+      const cleanUrl = xttsApiUrl.trim().replace(/\/$/, '');
+      console.log(`🎙️ [XTTS Voice Clone] Sending text to API: ${cleanUrl}/speak`);
+
+      const response = await axios.post(`${cleanUrl}/speak`, {
+        text: truncated,
+        language
+      }, {
+        responseType: 'arraybuffer',
+        timeout: 15000 // 15s timeout
+      });
+
+      console.log(`🔊 [XTTS Voice Clone] Success: received ${response.data.byteLength} bytes.`);
+      const buffer = Buffer.from(response.data);
+      buffer.isWav = true;
+      return buffer;
+    } catch (error) {
+      console.error('❌ [XTTS Voice Clone] API failed, falling back to OpenAI TTS. Error:', error.message);
+    }
+  }
+
+  // Fallback to OpenAI
+  console.log('🎙️ [OpenAI TTS] Generating voice reply (onyx)...');
   const mp3 = await openai.audio.speech.create({
     model: 'tts-1',
     voice: 'onyx', // Deep, confident voice — feels Jarvis-like
