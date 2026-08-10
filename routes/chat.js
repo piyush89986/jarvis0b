@@ -5,6 +5,7 @@ const ChatMessage = require('../models/ChatMessage');
 const { chat } = require('../services/openaiService');
 const { retrieveRelevantChunks } = require('../services/ragService');
 const { v4: uuidv4 } = require('uuid');
+const { searchYouTube } = require('../services/youtubeService');
 
 // ─────────────────────────────────────────────
 // POST /api/chat/message — Send a message (REST fallback)
@@ -55,12 +56,22 @@ router.post('/message', protect, async (req, res) => {
       content,
     });
 
+    let youtubeId = null;
+    let cleanedReply = reply;
+    const ytMatch = reply.match(/\[YT_PLAY:\s*(.+?)\]/i);
+    if (ytMatch) {
+      const query = ytMatch[1].trim();
+      cleanedReply = reply.replace(/\[YT_PLAY:\s*(.+?)\]/i, '').trim();
+      youtubeId = await searchYouTube(query);
+    }
+
     // Save assistant message
     const assistantMsg = await ChatMessage.create({
       userId: req.user._id,
       sessionId: sid,
       role: 'assistant',
-      content: reply,
+      content: cleanedReply,
+      youtubeId,
       usedRAG: contextChunks.length > 0,
       sources: contextChunks.map((c) => ({
         fileName: c.metadata?.fileName,
@@ -74,7 +85,7 @@ router.post('/message', protect, async (req, res) => {
       success: true,
       sessionId: sid,
       message: assistantMsg,
-      reply,
+      reply: cleanedReply,
       usedRAG: contextChunks.length > 0,
     });
   } catch (error) {

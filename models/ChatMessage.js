@@ -45,6 +45,11 @@ const chatMessageSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // YouTube video ID for embedded player
+    youtubeId: {
+      type: String,
+      default: null,
+    },
   },
   { timestamps: true }
 );

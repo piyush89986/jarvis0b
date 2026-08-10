@@ -5,6 +5,7 @@ const { streamChat } = require('../services/openaiService');
 const { retrieveRelevantChunks } = require('../services/ragService');
 const { transcribeAudio } = require('../services/openaiService');
 const { v4: uuidv4 } = require('uuid');
+const { searchYouTube } = require('../services/youtubeService');
 
 module.exports = (io) => {
   // ─────────────────────────────────────────────
@@ -101,12 +102,22 @@ module.exports = (io) => {
           onDone: async ({ content: finalContent, tokensUsed }) => {
             socket.emit('typing_stop', { sessionId: sid });
 
+            let youtubeId = null;
+            let cleanedContent = finalContent;
+            const ytMatch = finalContent.match(/\[YT_PLAY:\s*(.+?)\]/i);
+            if (ytMatch) {
+              const query = ytMatch[1].trim();
+              cleanedContent = finalContent.replace(/\[YT_PLAY:\s*(.+?)\]/i, '').trim();
+              youtubeId = await searchYouTube(query);
+            }
+
             // Save assistant message
             const assistantMsg = await ChatMessage.create({
               userId: socket.user._id,
               sessionId: sid,
               role: 'assistant',
-              content: finalContent,
+              content: cleanedContent,
+              youtubeId,
               usedRAG: contextChunks.length > 0,
               sources: contextChunks.slice(0, 3).map((c) => ({
                 fileName: c.metadata?.fileName,
@@ -199,18 +210,37 @@ module.exports = (io) => {
           onDone: async ({ content: finalContent, tokensUsed }) => {
             socket.emit('typing_stop', { sessionId: sid });
 
-            await ChatMessage.create({
+            let youtubeId = null;
+            let cleanedContent = finalContent;
+            const ytMatch = finalContent.match(/\[YT_PLAY:\s*(.+?)\]/i);
+            if (ytMatch) {
+              const query = ytMatch[1].trim();
+              cleanedContent = finalContent.replace(/\[YT_PLAY:\s*(.+?)\]/i, '').trim();
+              youtubeId = await searchYouTube(query);
+            }
+
+            const assistantMsg = await ChatMessage.create({
               userId: socket.user._id,
               sessionId: sid,
               role: 'assistant',
-              content: finalContent,
+              content: cleanedContent,
+              youtubeId,
               usedRAG: contextChunks.length > 0,
               tokensUsed,
             });
 
+            // Emit chat_done so client saves the message and updates UI/audio
+            socket.emit('chat_done', {
+              sessionId: sid,
+              message: assistantMsg,
+              usedRAG: contextChunks.length > 0,
+              sourcesCount: contextChunks.length,
+            });
+
             socket.emit('voice_response_done', {
               sessionId: sid,
-              content: finalContent,
+              content: cleanedContent,
+              youtubeId,
               transcript,
             });
           },
