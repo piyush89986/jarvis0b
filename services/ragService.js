@@ -152,10 +152,54 @@ const getUserSubjects = async (userId) => {
   return subjects;
 };
 
+// ─────────────────────────────────────────────
+// Save chat exchange to memory in the knowledge base
+// ─────────────────────────────────────────────
+const saveChatToMemory = async ({ userId, userMessage, assistantMessage }) => {
+  if (!userMessage?.trim() || !assistantMessage?.trim()) return;
+  try {
+    const textBlock = `User: ${userMessage.trim()}\nJarvis: ${assistantMessage.trim()}`;
+    
+    const KnowledgeFile = require('../models/KnowledgeFile');
+    
+    let memoryFile = await KnowledgeFile.findOne({ userId, originalName: 'Chat Memory' });
+    if (!memoryFile) {
+      memoryFile = await KnowledgeFile.create({
+        userId,
+        originalName: 'Chat Memory',
+        cloudinaryUrl: 'local',
+        cloudinaryPublicId: 'local',
+        fileType: 'txt',
+        subject: 'General',
+        status: 'processed',
+      });
+    }
+
+    const embedding = await generateEmbedding(textBlock);
+
+    await KnowledgeChunk.create({
+      userId,
+      fileId: memoryFile._id,
+      subject: 'General',
+      chunkText: textBlock,
+      embedding,
+      metadata: {
+        fileName: 'Chat Memory',
+        fileType: 'txt',
+      },
+    });
+
+    console.log(`🧠 [Memory] Saved chat exchange to user knowledge base: "${userMessage.substring(0, 30)}..."`);
+  } catch (err) {
+    console.error('❌ [Memory] Failed to save chat to memory:', err.message);
+  }
+};
+
 module.exports = {
   chunkText,
   processAndStoreDocument,
   retrieveRelevantChunks,
   deleteFileChunks,
   getUserSubjects,
+  saveChatToMemory,
 };

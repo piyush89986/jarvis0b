@@ -64,6 +64,10 @@ const knowledgeFileSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    rawText: {
+      type: String,
+      default: '',
+    },
   },
   { timestamps: true }
 );

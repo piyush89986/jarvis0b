@@ -192,4 +192,108 @@ router.get('/file/:fileId/status', protect, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────
+// GET /api/knowledge/text — Fetch user's direct text knowledge base
+// ─────────────────────────────────────────────
+router.get('/text', protect, async (req, res) => {
+  try {
+    const directFile = await KnowledgeFile.findOne({
+      userId: req.user._id,
+      originalName: 'Direct Text Input',
+      fileType: 'txt',
+    });
+
+    res.json({
+      success: true,
+      text: directFile ? directFile.rawText : '',
+      subject: directFile ? directFile.subject : 'General',
+    });
+  } catch (error) {
+    console.error('Fetch text knowledge base error:', error);
+    res.status(500).json({ success: false, message: 'Text load nahi ho paya', error: error.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// POST /api/knowledge/text — Save/update user's direct text knowledge base
+// ─────────────────────────────────────────────
+router.post('/text', protect, async (req, res) => {
+  try {
+    const { text, subject = 'General' } = req.body;
+    
+    // Find or create the virtual file
+    let directFile = await KnowledgeFile.findOne({
+      userId: req.user._id,
+      originalName: 'Direct Text Input',
+      fileType: 'txt',
+    });
+
+    if (!directFile) {
+      directFile = new KnowledgeFile({
+        userId: req.user._id,
+        originalName: 'Direct Text Input',
+        cloudinaryUrl: 'local',
+        cloudinaryPublicId: 'local',
+        fileType: 'txt',
+        subject: subject,
+        status: 'pending',
+      });
+    }
+
+    directFile.rawText = text || '';
+    directFile.fileSize = Buffer.byteLength(text || '', 'utf8');
+    directFile.subject = subject;
+    directFile.status = 'processing';
+    await directFile.save();
+
+    // Delete old chunks
+    await deleteFileChunks(directFile._id);
+
+    // If no text, we just mark it processed with 0 chunks
+    if (!text?.trim()) {
+      directFile.status = 'processed';
+      directFile.chunkCount = 0;
+      await directFile.save();
+      return res.json({
+        success: true,
+        message: 'Knowledge base clear kar diya gaya hai!',
+        file: directFile,
+      });
+    }
+
+    // Process and store the new chunks
+    try {
+      const { chunksCreated } = await processAndStoreDocument({
+        userId: req.user._id,
+        fileId: directFile._id,
+        subject,
+        extractedText: text,
+        metadata: {
+          fileName: 'Direct Text Input',
+          fileType: 'txt',
+        },
+      });
+
+      directFile.status = 'processed';
+      directFile.chunkCount = chunksCreated;
+      await directFile.save();
+
+      res.json({
+        success: true,
+        message: 'Knowledge base update ho gaya! J.A.R.V.I.S ab iska use karega 🧠',
+        file: directFile,
+      });
+    } catch (processError) {
+      console.error('Text embedding error:', processError);
+      directFile.status = 'failed';
+      directFile.errorMessage = processError.message;
+      await directFile.save();
+      res.status(500).json({ success: false, message: 'Notes embed nahi ho paye', error: processError.message });
+    }
+  } catch (error) {
+    console.error('Save text knowledge base error:', error);
+    res.status(500).json({ success: false, message: 'Save fail ho gaya', error: error.message });
+  }
+});
+
 module.exports = router;

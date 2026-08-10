@@ -2,7 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const ChatMessage = require('../models/ChatMessage');
 const { streamChat } = require('../services/openaiService');
-const { retrieveRelevantChunks } = require('../services/ragService');
+const { retrieveRelevantChunks, saveChatToMemory } = require('../services/ragService');
 const { transcribeAudio } = require('../services/openaiService');
 const { v4: uuidv4 } = require('uuid');
 const { searchYouTube } = require('../services/youtubeService');
@@ -127,6 +127,13 @@ module.exports = (io) => {
               tokensUsed,
             });
 
+            // Save conversation exchange to user's personal RAG memory
+            saveChatToMemory({
+              userId: socket.user._id,
+              userMessage: content,
+              assistantMessage: cleanedContent,
+            });
+
             socket.emit('chat_done', {
               sessionId: sid,
               message: assistantMsg,
@@ -227,6 +234,13 @@ module.exports = (io) => {
               youtubeId,
               usedRAG: contextChunks.length > 0,
               tokensUsed,
+            });
+
+            // Save conversation exchange to user's personal RAG memory
+            saveChatToMemory({
+              userId: socket.user._id,
+              userMessage: transcript,
+              assistantMessage: cleanedContent,
             });
 
             // Emit chat_done so client saves the message and updates UI/audio

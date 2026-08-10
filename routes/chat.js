@@ -3,7 +3,7 @@ const router = express.Router();
 const { protect } = require('../middleware/auth');
 const ChatMessage = require('../models/ChatMessage');
 const { chat } = require('../services/openaiService');
-const { retrieveRelevantChunks } = require('../services/ragService');
+const { retrieveRelevantChunks, saveChatToMemory } = require('../services/ragService');
 const { v4: uuidv4 } = require('uuid');
 const { searchYouTube } = require('../services/youtubeService');
 
@@ -79,6 +79,13 @@ router.post('/message', protect, async (req, res) => {
         chunkText: c.chunkText.substring(0, 200),
       })),
       tokensUsed,
+    });
+
+    // Save conversation exchange to user's personal RAG memory
+    saveChatToMemory({
+      userId: req.user._id,
+      userMessage: content,
+      assistantMessage: cleanedReply,
     });
 
     res.json({
