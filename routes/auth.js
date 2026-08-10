@@ -27,6 +27,7 @@ router.post('/register', async (req, res) => {
       branch: branch || 'B.Tech',
       semester: semester || 1,
       college: college || '',
+      role: 'user',
     });
 
     const token = generateToken(user._id);
@@ -43,6 +44,8 @@ router.post('/register', async (req, res) => {
         semester: user.semester,
         college: user.college,
         preferredLanguage: user.preferredLanguage,
+        role: user.role,
+        createdAt: user.createdAt,
       },
     });
   } catch (error) {
@@ -92,6 +95,8 @@ router.post('/login', async (req, res) => {
         preferredLanguage: user.preferredLanguage,
         streak: user.streak,
         totalStudyHours: user.totalStudyHours,
+        role: user.role,
+        createdAt: user.createdAt,
       },
     });
   } catch (error) {
