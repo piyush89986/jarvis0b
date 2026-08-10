@@ -44,6 +44,11 @@ const userSchema = new mongoose.Schema(
       enum: ['hinglish', 'hindi', 'english'],
       default: 'hinglish',
     },
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user',
+    },
     // Study stats
     totalStudyHours: {
       type: Number,
