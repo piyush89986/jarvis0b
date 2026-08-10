@@ -29,7 +29,7 @@ const protect = async (req, res, next) => {
 };
 
 const admin = (req, res, next) => {
-  if (req.user && (req.user.role === 'admin' || req.user.email === 'piyushsinghtanwar091@gmail.com')) {
+  if (req.user && req.user.role === 'admin') {
     next();
   } else {
     return res.status(403).json({ success: false, message: 'Bhai, tu admin nahi hai! Access denied.' });
